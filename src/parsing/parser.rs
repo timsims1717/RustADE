@@ -1,15 +1,12 @@
 /*
-parser.rs
-	|_parse(&mut Vec<&str>)		fn->Option<CommandNode>
-Created by Tim Sims on 20/3/2017
-Edited by Tim Sims on 21/3/2017
-Version 0.1.2
+
 */
 
 use std::io;
 
-use parsing::token::{Token,TokenType,VerbType,ItemType};
-use parsing::grammar::{CommandNode,ItemNode};
+use parsing::{TokenType,GameStateType,VerbType,OtherType,CommandNode};
+use parsing::token::Token;
+use parsing::grammar::{ItemNode,PrepositionNode};
 
 /*
 If a Token is still in input, it is removed from input and returned
@@ -57,7 +54,6 @@ pub fn get_next_command() -> Option<CommandNode> {
 			.expect("Failed to read line");
 
 	let mut words = input.split_whitespace().collect::<Vec<&str>>();
-	words.push("end");
 	parse(&mut words)
 }
 
@@ -65,29 +61,25 @@ pub fn get_next_command() -> Option<CommandNode> {
 Parses a given command (the input Vec) into a parse tree
 */
 fn parse(input: &mut Vec<&str>) -> Option<CommandNode> {
-	match command(input) {
-		Some(c) => match get_token(input) {
-			Some(next_token) => match next_token.t_type {
-				TokenType::END => Some(c),
-				_ => None,
-			},
-			None => None,
+	match get_token(input) {
+		Some(next_token) => match next_token.t_type {
+			TokenType::GAMESTATE(s) => gamestate(s, input),
+			TokenType::VERB(v) => verb(v, input),
+			TokenType::OTHER(o) => other(o, input),
+			TokenType::DIRECTION(d) => Some(CommandNode::GO(d)),
+			_ => None,
 		},
 		None => None,
 	}
 }
 
 /*
-Determines if the command is a gamestate command or a verb
+Determines the game state command
 */
-fn command(input: &mut Vec<&str>) -> Option<CommandNode> {
-	match get_token(input) {
-		Some(next_token) => match next_token.t_type {
-			TokenType::QUIT => Some(CommandNode::QUIT),
-			TokenType::VERB(v) => verb(v, input),
-			_ => None,
-		},
-		None => None,
+#[allow(unused_variables)]
+fn gamestate(s: GameStateType, input: &mut Vec<&str>) -> Option<CommandNode> {
+	match s {
+		GameStateType::QUIT => Some(CommandNode::GAMESTATE(s)),
 	}
 }
 
@@ -96,11 +88,11 @@ Determines the verb of the command
 */
 fn verb(v: VerbType, input: &mut Vec<&str>) -> Option<CommandNode> {
 	match v {
-		VerbType::LOOK => Some(CommandNode::LOOK),
+		VerbType::LOOK => Some(CommandNode::LOOK(preposition(input))),
 		VerbType::INVENTORY => Some(CommandNode::INVENTORY),
 		VerbType::GO => go(input),
-		VerbType::GET => match item(input) {
-			Some(i) => Some(CommandNode::GET(i)),
+		VerbType::TAKE => match item(input) {
+			Some(i) => Some(CommandNode::TAKE(i)),
 			None => None,
 		},
 		VerbType::DROP => match item(input) {
@@ -115,6 +107,7 @@ fn verb(v: VerbType, input: &mut Vec<&str>) -> Option<CommandNode> {
 			Some(i) => Some(CommandNode::USE(i)),
 			None => None,
 		},
+		_ => None,
 	}
 }
 
@@ -132,16 +125,45 @@ fn go(input: &mut Vec<&str>) -> Option<CommandNode> {
 }
 
 /*
-Determines if an item was specified
+Determines if a preposition was specified
 */
-fn item(input: &mut Vec<&str>) -> Option<ItemNode> {
-	let lexeme = peek_lexeme(input);
+fn preposition(input: &mut Vec<&str>) -> Option<PrepositionNode> {
 	match get_token(input) {
 		Some(next_token) => match next_token.t_type {
-			TokenType::ITEM(i) => Some(ItemNode::new(i, lexeme)),
-			TokenType::WORD => Some(ItemNode::new(ItemType::UNKNOWN, lexeme)),
+			TokenType::PREPOSITION(p) => match item(input) {
+				Some(i) => Some(PrepositionNode::new(p, i)),
+				None => None,
+			},
 			_ => None,
 		},
 		None => None,
 	}
+}
+
+/*
+Determines if an item was specified
+*/
+#[allow(unused_variables)]
+fn item(input: &mut Vec<&str>) -> Option<ItemNode> {
+	let lexeme = peek_lexeme(input);
+	match get_token(input) {
+		Some(next_token) => match next_token.t_type {
+			TokenType::ITEM(i) => Some(ItemNode::new(i.as_str(), lexeme)),
+			TokenType::WORD => Some(ItemNode::new("UNKNOWN", lexeme)),
+			_ => None,
+		},
+		None => None,
+	}
+}
+
+/*
+Other token types
+*/
+#[allow(unused_variables)]
+fn other(o: OtherType, input: &mut Vec<&str>) -> Option<CommandNode> {
+	Some(CommandNode::OTHER(o))
+	// match o {
+	// 	OtherType::YES => Some(CommandNode::OTHER(o)),
+	// 	OtherType::NO => Some(CommandNode::OTHER(o)),
+	// }
 }

@@ -1,9 +1,10 @@
 
 [package]
-name = "proc_advent"
-version = "0.1.2"
+name = "RustADE"
+version = "0.1.3"
 authors = ["Tim Sims <timsims1717@gmail.com>"]
 
 [dependencies]
 regex = "0.2"
 lazy_static = "0.2.4"
+uuid = { version = "0.4", features = ["v4"] }
